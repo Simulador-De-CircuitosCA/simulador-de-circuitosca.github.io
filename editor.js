@@ -606,7 +606,13 @@ function solveCircuit() {
             msg += `${comp.etiqueta}:\n  V = ${formatComplex(Vdrop)} V\n  I = ${formatComplex(I)} A\n`;
             
             if (comp.tipo !== 'Multimeter') {
+                const isSrc = comp.tipo === 'VoltageSource' || comp.tipo === 'CurrentSource';
+                const hayS = Sapp_comp > 1e-12;
+                const fp_comp = hayS ? Math.abs(P_comp) / Sapp_comp : null;
+                const qEff = isSrc ? -Q_comp : Q_comp; // en fuentes, Q entregada = -Q (conv. pasiva)
+                const fpTipo = (!hayS || fp_comp > 1 - 1e-9 || fp_comp < 1e-9) ? '' : (qEff > 0 ? ' (en atraso)' : ' (en adelanto)');
                 msg += `  S (Aparente) = ${Sapp_comp.toFixed(4)} VA\n  P (Activa)   = ${P_comp.toFixed(4)} W\n  Q (Reactiva) = ${Q_comp.toFixed(4)} VAR\n`;
+                msg += `  FP           = ${hayS ? fp_comp.toFixed(4) : 'N/D'}${fpTipo}\n`;
             }
             msg += `\n`;
 
@@ -625,29 +631,57 @@ function solveCircuit() {
                 S_total = math.add(S_total, math.multiply(math.multiply(s.V, math.conj(s.I)), 0.5));
                 S_2w = math.add(S_2w, math.multiply(math.multiply(s.V, s.I), 0.5));
             });
+            const P_tot = S_total.re; const Q_tot = S_total.im; const Sapp_tot = math.abs(S_total);
 
-            if (sourcesData.length === 1) {
-                const Vs = sourcesData[0].V; const Is = sourcesData[0].I;
-                if (math.abs(Is) > 1e-12) msg += `Z Total:\n${formatComplex(math.divide(Vs, Is))} Ω\n\n`;
-                else msg += "Z Total: ∞ (circuito abierto)\n\n";
-                if (math.abs(Vs) > 1e-12) msg += `Y Total:\n${formatComplex(math.divide(Is, Vs))} S\n\n`;
+            // ¿Todas las fuentes conducen la misma corriente (±)? -> circuito en serie
+            const Iref = sourcesData[0].I; const IrefMag = math.abs(Iref);
+            const sinCorriente = sourcesData.every(s => math.abs(s.I) < 1e-12);
+            const enSerie = IrefMag > 1e-12 && sourcesData.every(s =>
+                math.abs(math.subtract(s.I, Iref)) < 1e-6 * IrefMag || math.abs(math.add(s.I, Iref)) < 1e-6 * IrefMag);
+
+            if (sinCorriente) {
+                msg += "Z Total: ∞ (circuito abierto)\nY Total: 0 S\n\n";
+            } else if (enSerie) {
+                const Zt = math.divide(math.multiply(S_total, 2), IrefMag * IrefMag);   // Z = 2S/|I|²
+                const Vt = math.multiply(Zt, Iref);                                     // Vt = Z·It (fuente equivalente)
+                msg += `Z Total:\n${formatComplex(Zt)} Ω\n\n`;
+                if (math.abs(Zt) > 1e-12) msg += `Y Total:\n${formatComplex(math.divide(1, Zt))} S\n\n`;
                 else msg += "Y Total: ∞ (cortocircuito)\n\n";
+                msg += `Vt (fuente equivalente):\n${formatComplex(Vt)} V\n\n`;
+                msg += `It (corriente total):\n${formatComplex(Iref)} A\n\n`;
+                msg += `Vt rms = ${(math.abs(Vt) / Math.SQRT2).toFixed(6)} V   |   It rms = ${(IrefMag / Math.SQRT2).toFixed(6)} A\n\n`;
             } else {
-                msg += "Z Total / Y Total: no están definidas con varias fuentes independientes.\n\n";
+                msg += "Z Total / Y Total: no están definidas (las fuentes no conducen la misma corriente, no están en serie).\n\n";
             }
 
-            let P_tot = S_total.re; let Q_tot = S_total.im; let Sapp_tot = math.abs(S_total);
-            let S_sign = Q_tot >= 0 ? '+' : '-';
+            // Factor de potencia
+            const thetaPF = Math.atan2(Q_tot, P_tot) * 180 / Math.PI;      // ángulo de S = φv - φi
+            const hayS = Sapp_tot > 1e-12;
+            let fpTxt = 'N/D';
+            if (hayS) {
+                const fp = Math.abs(P_tot) / Sapp_tot;
+                let tipo = 'unitario (resistivo)';
+                if (Q_tot > 1e-9 * Sapp_tot) tipo = 'en atraso (inductivo)';
+                else if (Q_tot < -1e-9 * Sapp_tot) tipo = 'en adelanto (capacitivo)';
+                fpTxt = `${fp.toFixed(6)} ${tipo}`;
+            }
+            const D_tot = Math.sqrt(Math.max(0, Sapp_tot ** 2 - P_tot ** 2 - Q_tot ** 2));
             const amp2w = math.abs(S_2w);
-            const angSum = math.arg(S_2w) * 180 / Math.PI; let angSign = angSum >= 0 ? '+' : '-';
+            const angSum = math.arg(S_2w) * 180 / Math.PI; const angSign = angSum >= 0 ? '+' : '-';
+            const S_sign = Q_tot >= 0 ? '+' : '-';
 
-            msg += `(Potencias entregadas por las fuentes, asumiendo Amplitudes Pico)\n\n`;
+            msg += `(Potencias entregadas por las fuentes, amplitudes pico; coinciden con Vrms·Irms)\n\n`;
             msg += `Potencia Aparente (|S|)  : ${Sapp_tot.toFixed(6)} VA\n`;
             msg += `Potencia Activa/Prom (P) : ${P_tot.toFixed(6)} W\n`;
             msg += `Potencia Reactiva (Q)    : ${Q_tot.toFixed(6)} VAR\n`;
-            msg += `Potencia Compleja (S)    : ${P_tot.toFixed(6)} ${S_sign} j${Math.abs(Q_tot).toFixed(6)} VA\n\n`;
+            msg += `Potencia Compleja (S)    : ${P_tot.toFixed(6)} ${S_sign} j${Math.abs(Q_tot).toFixed(6)} VA\n`;
+            msg += `Potencia de Distorsión   : ${D_tot.toFixed(6)} VA (régimen senoidal)\n\n`;
+            msg += `Factor de Potencia (FP)  : ${fpTxt}\n`;
+            msg += `Ángulo del FP (θ)        : ${hayS ? thetaPF.toFixed(6) : 'N/D'}°\n`;
+            msg += `FP Reactivo (sen θ)      : ${hayS ? (Q_tot / Sapp_tot).toFixed(6) : 'N/D'}\n\n`;
             msg += `Potencia Instantánea p(t):\n`;
-            msg += `${P_tot.toFixed(4)} + ${amp2w.toFixed(4)} * cos(2ωt ${angSign} ${Math.abs(angSum).toFixed(2)}°) W\n\n`;
+            msg += `${P_tot.toFixed(4)} + ${amp2w.toFixed(4)} * cos(2ωt ${angSign} ${Math.abs(angSum).toFixed(2)}°) W\n`;
+            msg += `p(t) máxima = ${(P_tot + amp2w).toFixed(4)} W   |   p(t) mínima = ${(P_tot - amp2w).toFixed(4)} W\n\n`;
         } else { msg += "No hay una fuente principal para referenciar Z y Potencia Total.\n\n"; }
 
         let passivesAdj = {};
