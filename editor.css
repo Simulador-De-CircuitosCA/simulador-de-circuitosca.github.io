@@ -34,7 +34,7 @@ body, html {
 }
 #simBtn:hover { background-color: #cc2d25; }
 
-/* NUEVO: Botón de Ayuda */
+/* Botón de Ayuda */
 #helpBtn {
     background-color: #17a2b8; color: white; border: none; padding: 10px;
     margin: 10px 15px 0 15px; border-radius: 4px; cursor: pointer; font-weight: bold;
@@ -140,3 +140,53 @@ select.unit-box option { background: #333; color: white; }
 }
 #saveEditBtn, #closeHelpBtn { background: #28a745; color: white; }
 #cancelEditBtn { background: #dc3545; color: white; }
+
+/* --- NUEVO: PANTALLA DE AVISO PARA MÓVILES --- */
+#mobileOverlay {
+    display: none; /* Oculto por defecto en PC */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: #121212;
+    z-index: 9999; /* Por encima de todo */
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.mobile-message {
+    background-color: #1e1e1e;
+    padding: 30px;
+    border-radius: 10px;
+    border: 2px solid #ff3b30;
+    color: white;
+    max-width: 400px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+}
+
+.mobile-message h2 {
+    color: #ff3b30;
+    margin-top: 0;
+    font-size: 24px;
+}
+
+.mobile-message p {
+    font-size: 16px;
+    line-height: 1.6;
+    color: #e0e0e0;
+}
+
+.mobile-message b {
+    color: #00ffcc;
+}
+
+/* Activa la pantalla de bloqueo en dispositivos móviles o ventanas estrechas */
+@media (max-width: 768px) {
+    #mobileOverlay {
+        display: flex; 
+    }
+}
