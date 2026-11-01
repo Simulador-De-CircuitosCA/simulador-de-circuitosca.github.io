@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Editor de Circuitos AC - Completo</title>
     
+    <!-- Etiqueta para silenciar el error del favicon en la consola -->
+    <link rel="icon" href="data:,">
+    
     <!-- Etiqueta de verificación de Google AdSense -->
     <meta name="google-adsense-account" content="ca-pub-7767486604695494">
     
@@ -12,6 +15,17 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.js"></script>
 </head>
 <body>
+    
+    <!-- PANTALLA DE AVISO PARA MÓVILES -->
+    <div id="mobileOverlay">
+        <div class="mobile-message">
+            <h2>⚠️ Atención</h2>
+            <p>Este simulador requiere el uso de ratón y teclado (clic derecho, arrastrar, tecla Shift) para conectar y editar los circuitos.</p>
+            <p><b>Por favor, ábrelo en una computadora (PC/Laptop) para que funcione correctamente.</b></p>
+        </div>
+    </div>
+    <!-- --------------------------------------- -->
+
     <div id="sidebar">
         <div id="menuHeader">
             <span id="menuTitle">Componentes</span>
@@ -40,7 +54,6 @@
         <div id="adContainer">
             <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7767486604695494"
                  crossorigin="anonymous"></script>
-            <!-- anuncio menu -->
             <ins class="adsbygoogle"
                  style="display:block"
                  data-ad-client="ca-pub-7767486604695494"
@@ -51,7 +64,7 @@
                  (adsbygoogle = window.adsbygoogle || []).push({});
             </script>
         </div>
-    </div> <!-- CORRECCIÓN 1: Cierre de #sidebar restaurado -->
+    </div>
 
     <canvas id="circuitCanvas"></canvas>
 
@@ -59,7 +72,6 @@
     <div id="bottomAdContainer">
         <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7767486604695494"
              crossorigin="anonymous"></script>
-        <!-- anuncio zona abajo -->
         <ins class="adsbygoogle"
              style="display:block"
              data-ad-client="ca-pub-7767486604695494"
@@ -83,7 +95,6 @@
         <div id="resultsAdContainer">
             <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7767486604695494"
                  crossorigin="anonymous"></script>
-            <!-- anuncio barra d resultados -->
             <ins class="adsbygoogle"
                  style="display:block"
                  data-ad-client="ca-pub-7767486604695494"
@@ -94,7 +105,7 @@
                  (adsbygoogle = window.adsbygoogle || []).push({});
             </script>
         </div>
-    </div> <!-- CORRECCIÓN 2: Cierre de #resultsPanel restaurado -->
+    </div>
 
     <!-- VENTANA MODAL PARA EDITAR VALORES Y ÁNGULOS -->
     <div id="editModal" class="hidden">
@@ -110,7 +121,6 @@
                 </select>
             </div>
 
-            <!-- Caja para el ángulo (Solo visible en fuentes AC) -->
             <div class="input-container hidden" id="phaseGroup">
                 <input type="number" id="editPhase" placeholder="Ángulo / Desfase" value="0" autocomplete="off">
                 <span class="unit-box">° (Grados)</span>
@@ -123,7 +133,7 @@
         </div>
     </div>
 
-    <!-- NUEVO: VENTANA MODAL DE INSTRUCCIONES -->
+    <!-- VENTANA MODAL DE INSTRUCCIONES -->
     <div id="helpModal" class="hidden">
         <div class="modal-box help-box">
             <h3>Comandos del Simulador</h3>
