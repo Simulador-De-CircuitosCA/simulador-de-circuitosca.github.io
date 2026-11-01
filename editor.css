@@ -1,0 +1,142 @@
+body, html {
+    margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+    background-color: #121212; font-family: Arial, sans-serif;
+}
+
+#sidebar {
+    position: absolute; top: 0; left: 0; width: 220px; height: 100%;
+    background-color: #1e1e1e; color: white; transition: transform 0.3s ease;
+    z-index: 10; display: flex; flex-direction: column; box-shadow: 2px 0 5px rgba(0,0,0,0.5);
+}
+#sidebar.collapsed { transform: translateX(-100%); }
+
+#menuHeader {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 15px; background-color: #2a2a2a;
+}
+#toggleMenu {
+    background: none; border: none; color: white; font-size: 20px; cursor: pointer;
+    position: absolute; right: -40px; top: 10px; background-color: #1e1e1e;
+    padding: 10px; border-radius: 0 5px 5px 0;
+}
+
+#simSettings {
+    padding: 15px; background-color: #333; border-bottom: 2px solid #444;
+    display: flex; justify-content: space-between; align-items: center;
+}
+#simSettings input {
+    width: 60px; padding: 5px; background-color: #222; color: #fff;
+    border: 1px solid #555; border-radius: 3px; text-align: center;
+}
+#simBtn {
+    background-color: #ff3b30; color: white; border: none;
+    padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold;
+}
+#simBtn:hover { background-color: #cc2d25; }
+
+/* NUEVO: Botón de Ayuda */
+#helpBtn {
+    background-color: #17a2b8; color: white; border: none; padding: 10px;
+    margin: 10px 15px 0 15px; border-radius: 4px; cursor: pointer; font-weight: bold;
+}
+#helpBtn:hover { background-color: #138496; }
+
+#componentsList { 
+    padding: 15px 10px; display: flex; flex-direction: column; gap: 10px; 
+    flex-grow: 1; overflow-y: auto;
+}
+.component-item {
+    background-color: #007bff; padding: 10px; border-radius: 4px;
+    cursor: grab; text-align: center; user-select: none;
+}
+.component-item:active { cursor: grabbing; }
+.ground-item { background-color: #28a745; }
+.multimeter-item { background-color: #6c757d; border: 1px solid #ffc107; }
+
+/* ANUNCIOS */
+#adContainer {
+    background-color: #151515; border-top: 2px solid #2a2a2a; padding: 15px; 
+    min-height: 90px; display: flex; justify-content: center; align-items: center; margin-top: auto;
+}
+.ad-placeholder {
+    color: #555; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+    border: 1px dashed #444; width: 100%; height: 60px;
+    display: flex; align-items: center; justify-content: center; user-select: none;
+}
+#bottomAdContainer {
+    position: absolute; bottom: 0; left: 220px; width: calc(100% - 220px);
+    display: flex; justify-content: center; padding-bottom: 15px; z-index: 5; pointer-events: none; 
+}
+.ad-horizontal {
+    width: 728px; height: 90px; background-color: #111; border: 1px dashed #444; color: #555;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; letter-spacing: 1px; 
+    text-transform: uppercase; pointer-events: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+}
+
+canvas { display: block; width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+
+#resultsPanel {
+    position: absolute; top: 0; right: 0; width: 380px; height: 100%;
+    background-color: #1e1e1e; color: #ffffff; box-shadow: -2px 0 5px rgba(0,0,0,0.5);
+    display: flex; flex-direction: column; z-index: 10; transition: transform 0.3s ease;
+}
+#resultsPanel.hidden { transform: translateX(100%); }
+#resultsHeader {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 15px; background-color: #2a2a2a; border-bottom: 2px solid #444;
+}
+#resultsHeader h2 { margin: 0; font-size: 16px; color: #00ffcc; }
+#closeResultsBtn { background: none; border: none; color: #ff3b30; font-size: 20px; cursor: pointer; }
+#resultsContent {
+    padding: 15px; overflow-y: auto; flex-grow: 1; font-family: 'Courier New', Courier, monospace; 
+    font-size: 13px; line-height: 1.6; white-space: pre-wrap; color: #e0e0e0;
+}
+#resultsAdContainer {
+    background-color: #151515; border-top: 2px solid #2a2a2a; padding: 15px; 
+    display: flex; justify-content: center; align-items: center;
+}
+.ad-square {
+    width: 300px; height: 250px; background-color: #111; border: 1px dashed #444; color: #555;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; 
+    letter-spacing: 1px; text-transform: uppercase;
+}
+
+/* MODALES GLOBALES */
+#editModal, #helpModal {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0, 0, 0, 0.7); display: flex; justify-content: center;
+    align-items: center; z-index: 100;
+}
+#editModal.hidden, #helpModal.hidden { display: none; }
+
+.modal-box {
+    background: #2a2a2a; padding: 20px; border-radius: 8px;
+    color: white; width: 280px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+}
+.help-box { width: 450px; max-height: 85vh; overflow-y: auto; }
+.help-list { padding-left: 20px; line-height: 1.8; color: #e0e0e0; font-size: 14px; }
+.help-list b { color: #ffc107; }
+
+.modal-box h3 { margin-top: 0; color: #00ffcc; text-align: center; }
+
+.input-container { display: flex; margin: 15px 0; }
+.input-container input {
+    flex-grow: 1; padding: 10px; background: #1e1e1e; border: 1px solid #555;
+    color: white; font-size: 16px; border-radius: 4px 0 0 4px; outline: none; width: 100%;
+}
+.unit-box {
+    padding: 0 15px; background: #444; border: 1px solid #555; border-left: none;
+    color: #ffc107; font-weight: bold; font-size: 16px; border-radius: 0 4px 4px 0;
+    display: flex; align-items: center; justify-content: center;
+}
+.input-container.hidden, .unit-box.hidden { display: none !important; }
+
+select.unit-box { cursor: pointer; outline: none; }
+select.unit-box option { background: #333; color: white; }
+
+.modal-actions { display: flex; justify-content: space-between; }
+.modal-actions button {
+    padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;
+}
+#saveEditBtn, #closeHelpBtn { background: #28a745; color: white; }
+#cancelEditBtn { background: #dc3545; color: white; }
