@@ -43,7 +43,7 @@ let dragOffsetX = 0;
 let dragOffsetY = 0;
 
 function parseUnit(valueStr) {
-    const units = { 'p': 1e-12, 'n': 1e-9, 'µ': 1e-6, 'u': 1e-6, 'm': 1e-3, 'k': 1e3, 'M': 1e6, 'G': 1e9 };
+    const units = { 'p': 1e-12, 'n': 1e-9, 'µ': 1e-6, 'u': 1e-6, '\u03bc': 1e-6, 'm': 1e-3, 'k': 1e3, 'M': 1e6, 'G': 1e9 };
     let cleanStr = valueStr.replace(/[VvAaFfHhΩ]/g, '').trim();
     let multiplier = 1;
     let lastChar = cleanStr.slice(-1);
@@ -487,11 +487,34 @@ function buildNetlist() {
     return { netlist, numNodes: nextNodeId - 1 };
 }
 
+// Admitancia compleja Y = 1/Z de cada elemento pasivo (misma función para armar la matriz y para calcular I = Y·V)
+const Y_SHORT = 1e6; // Admitancia usada para modelar un cortocircuito ideal (Z = 0)
+function getAdmittance(comp, w) {
+    const val = comp.valorNum;
+    const isOhm = comp.ref.value.endsWith('Ω');
+    const shortCircuit = math.complex(Y_SHORT, 0);
+    switch (comp.tipo) {
+        case 'Resistor':
+            return val === 0 ? shortCircuit : math.complex(1 / val, 0);                  // Z = R
+        case 'Capacitor':
+            if (isOhm) return val === 0 ? shortCircuit : math.complex(0, 1 / val);       // Z = -jXc  ->  Y = j/Xc
+            return math.complex(0, w * val);                                             // Z = 1/(jwC)  ->  Y = jwC
+        case 'Inductor':
+            if (isOhm) return val === 0 ? shortCircuit : math.complex(0, -1 / val);      // Z = jXl   ->  Y = -j/Xl
+            if (val === 0 || w === 0) return shortCircuit;                               // L = 0 o corriente directa: cortocircuito
+            return math.complex(0, -1 / (w * val));                                      // Z = jwL   ->  Y = -j/(wL)
+        case 'Multimeter':
+            return comp.ref.mode === 'V' ? math.complex(1e-9, 0) : math.complex(0, 0);  // Voltímetro: 1 GΩ
+    }
+    return math.complex(0, 0);
+}
+
 function solveCircuit() {
     const buildResult = buildNetlist();
     if (!buildResult) return;
     const { netlist, numNodes: N } = buildResult; 
-    const freq = parseFloat(freqInput.value) || 60;
+    const freqParsed = parseFloat(freqInput.value);
+    const freq = (isFinite(freqParsed) && freqParsed >= 0) ? freqParsed : 60;
     const w = 2 * Math.PI * freq; 
 
     let voltageSources = [];
@@ -516,33 +539,16 @@ function solveCircuit() {
 
     netlist.forEach(comp => {
         const n1 = comp.nodo1; const n2 = comp.nodo2; const val = comp.valorNum;
-        let Y = math.complex(0, 0);
-        
-        const isOhm = comp.ref.value.endsWith('Ω');
-        
-        if (comp.tipo === 'Resistor') {
-            if (val !== 0) Y = math.complex(1 / val, 0);
-        } else if (comp.tipo === 'Capacitor') {
-            if (isOhm) {
-                if (val !== 0) Y = math.complex(0, 1 / val);
-            } else { Y = math.complex(0, w * val); }
-        } else if (comp.tipo === 'Inductor') {
-            if (isOhm) {
-                if (val !== 0) Y = math.complex(0, -1 / val);
-            } else {
-                if (val !== 0 && w !== 0) Y = math.complex(0, -1 / (w * val)); 
-            }
-        } else if (comp.tipo === 'Multimeter' && comp.ref.mode === 'V') {
-            Y = math.complex(1e-9, 0);
-        } else if (comp.tipo === 'CurrentSource') {
+
+        if (comp.tipo === 'CurrentSource') {
             // Incorporación de ángulo (Phasor) a número complejo (Rectangular)
             const phaseRad = (comp.ref.phase || 0) * Math.PI / 180;
             const I_complex = math.complex(val * Math.cos(phaseRad), val * Math.sin(phaseRad));
             addZ(n1, math.multiply(I_complex, -1)); addZ(n2, I_complex);
-        }
-        
-        if (['Resistor', 'Capacitor', 'Inductor'].includes(comp.tipo) || (comp.tipo === 'Multimeter' && comp.ref.mode === 'V')) {
-            addA(n1, n1, Y); addA(n2, n2, Y); addA(n1, n2, math.multiply(Y, -1)); addA(n2, n1, math.multiply(Y, -1));
+        } else if (['Resistor', 'Capacitor', 'Inductor'].includes(comp.tipo) || (comp.tipo === 'Multimeter' && comp.ref.mode === 'V')) {
+            const Y = getAdmittance(comp, w);
+            const negY = math.multiply(Y, -1);
+            addA(n1, n1, Y); addA(n2, n2, Y); addA(n1, n2, negY); addA(n2, n1, negY);
         }
     });
     
@@ -569,39 +575,32 @@ function solveCircuit() {
             const v = V_nodes[i]; msg += `Nodo ${i}:\n${formatComplex(v)} V\n\n`;
         }
 
-        let firstSourceV = null; let firstSourceI = null;
+        const sourcesData = [];
         
         msg += "=== CORRIENTE, VOLTAJE Y POTENCIA ===\n";
+        msg += "(Convención pasiva: en las fuentes, P < 0 indica que entregan potencia)\n\n";
         netlist.forEach(comp => {
             const V1 = V_nodes[comp.nodo1]; const V2 = V_nodes[comp.nodo2];
             const Vdrop = math.subtract(V1, V2);
             let I = math.complex(0, 0);
-            const isOhm = comp.ref.value.endsWith('Ω');
+            const isPassive = ['Resistor', 'Capacitor', 'Inductor'].includes(comp.tipo) || (comp.tipo === 'Multimeter' && comp.ref.mode === 'V');
 
-            if (comp.tipo === 'Resistor') I = math.divide(Vdrop, comp.valorNum);
-            else if (comp.tipo === 'Capacitor') {
-                I = isOhm ? math.divide(Vdrop, math.complex(0, -comp.valorNum)) 
-                          : math.multiply(Vdrop, math.complex(0, w * comp.valorNum));
-            }
-            else if (comp.tipo === 'Inductor') {
-                I = isOhm ? math.divide(Vdrop, math.complex(0, comp.valorNum)) 
-                          : math.divide(Vdrop, math.complex(0, w * comp.valorNum));
-            }
+            if (isPassive) I = math.multiply(Vdrop, getAdmittance(comp, w));
             else if (comp.tipo === 'CurrentSource') {
                 const pRad = (comp.ref.phase || 0) * Math.PI / 180;
                 I = math.complex(comp.valorNum * Math.cos(pRad), comp.valorNum * Math.sin(pRad));
             }
-            else if (comp.tipo === 'Multimeter' && comp.ref.mode === 'V') I = math.divide(Vdrop, 1e9);
             else if (comp.tipo === 'VoltageSource' || (comp.tipo === 'Multimeter' && comp.ref.mode === 'A')) {
-                const idx = voltageSources.findIndex(vs => vs.etiqueta === comp.etiqueta);
-                I = X[N + idx][0]; 
+                const idx = voltageSources.indexOf(comp);
+                I = X[N + idx][0];
             }
 
             let S_comp = math.multiply(math.multiply(Vdrop, math.conj(I)), 0.5);
             let P_comp = S_comp.re; let Q_comp = S_comp.im; let Sapp_comp = math.abs(S_comp);
 
-            if ((comp.tipo === 'VoltageSource' || comp.tipo === 'CurrentSource') && firstSourceV === null) {
-                firstSourceV = Vdrop; firstSourceI = I;
+            if (comp.tipo === 'VoltageSource' || comp.tipo === 'CurrentSource') {
+                // Corriente ENTREGADA por la fuente (sale del terminal +): I_entregada = -I_MNA
+                sourcesData.push({ etiqueta: comp.etiqueta, V: Vdrop, I: math.multiply(I, -1) });
             }
 
             msg += `${comp.etiqueta}:\n  V = ${formatComplex(Vdrop)} V\n  I = ${formatComplex(I)} A\n`;
@@ -618,23 +617,37 @@ function solveCircuit() {
         });
 
         msg += "=== IMPEDANCIA Y POTENCIA (TOTAL) ===\n";
-        if (firstSourceV !== null && firstSourceI !== null && math.abs(firstSourceI) > 1e-12) {
-            let Z = math.divide(firstSourceV, firstSourceI); let Y = math.divide(firstSourceI, firstSourceV);
-            msg += `Z Total:\n${formatComplex(Z)} Ω\n\nY Total:\n${formatComplex(Y)} S\n\n`;
-            
-            let S_total = math.multiply(math.multiply(firstSourceV, math.conj(firstSourceI)), 0.5);
+        if (sourcesData.length > 0) {
+            // Potencia ENTREGADA por todas las fuentes: S = ½·V·I*   (pico)
+            // S_2w = ½·V·I (sin conjugar) define la componente de 2ω de p(t)
+            let S_total = math.complex(0, 0); let S_2w = math.complex(0, 0);
+            sourcesData.forEach(s => {
+                S_total = math.add(S_total, math.multiply(math.multiply(s.V, math.conj(s.I)), 0.5));
+                S_2w = math.add(S_2w, math.multiply(math.multiply(s.V, s.I), 0.5));
+            });
+
+            if (sourcesData.length === 1) {
+                const Vs = sourcesData[0].V; const Is = sourcesData[0].I;
+                if (math.abs(Is) > 1e-12) msg += `Z Total:\n${formatComplex(math.divide(Vs, Is))} Ω\n\n`;
+                else msg += "Z Total: ∞ (circuito abierto)\n\n";
+                if (math.abs(Vs) > 1e-12) msg += `Y Total:\n${formatComplex(math.divide(Is, Vs))} S\n\n`;
+                else msg += "Y Total: ∞ (cortocircuito)\n\n";
+            } else {
+                msg += "Z Total / Y Total: no están definidas con varias fuentes independientes.\n\n";
+            }
+
             let P_tot = S_total.re; let Q_tot = S_total.im; let Sapp_tot = math.abs(S_total);
             let S_sign = Q_tot >= 0 ? '+' : '-';
-            let angV = math.arg(firstSourceV) * 180 / Math.PI; let angI = math.arg(firstSourceI) * 180 / Math.PI;
-            let angSum = angV + angI; let angSign = angSum >= 0 ? '+' : '-';
+            const amp2w = math.abs(S_2w);
+            const angSum = math.arg(S_2w) * 180 / Math.PI; let angSign = angSum >= 0 ? '+' : '-';
 
-            msg += `(Potencias asumiendo Amplitudes Pico en la fuente)\n\n`;
+            msg += `(Potencias entregadas por las fuentes, asumiendo Amplitudes Pico)\n\n`;
             msg += `Potencia Aparente (|S|)  : ${Sapp_tot.toFixed(6)} VA\n`;
             msg += `Potencia Activa/Prom (P) : ${P_tot.toFixed(6)} W\n`;
             msg += `Potencia Reactiva (Q)    : ${Q_tot.toFixed(6)} VAR\n`;
             msg += `Potencia Compleja (S)    : ${P_tot.toFixed(6)} ${S_sign} j${Math.abs(Q_tot).toFixed(6)} VA\n\n`;
             msg += `Potencia Instantánea p(t):\n`;
-            msg += `${P_tot.toFixed(4)} + ${Sapp_tot.toFixed(4)} * cos(2ωt ${angSign} ${Math.abs(angSum).toFixed(2)}°) W\n\n`;
+            msg += `${P_tot.toFixed(4)} + ${amp2w.toFixed(4)} * cos(2ωt ${angSign} ${Math.abs(angSum).toFixed(2)}°) W\n\n`;
         } else { msg += "No hay una fuente principal para referenciar Z y Potencia Total.\n\n"; }
 
         let passivesAdj = {};
@@ -670,7 +683,7 @@ function solveCircuit() {
     } catch (e) {
         console.error(e);
         let errorMsg = "❌ ERROR AL RESOLVER EL CIRCUITO\n\n";
-        if (e.message.includes("Singular matrix") || e.message.includes("Cannot solve")) {
+        if (/singular|cannot solve|cannot be solved/i.test(e.message)) {
             errorMsg += "⚠️ CORTOCIRCUITO O NODO FLOTANTE DETECTADO ⚠️\n\nPosibles causas:\n1. Cortocircuito: Conectaste una fuente de voltaje directamente sobre sí misma o hacia Tierra.\n2. Nodo Flotante: Tienes un componente conectado al aire, sin un camino que cierre el circuito hacia la Tierra (GND).\n\n";
         } else {
             errorMsg += "Fallo matemático interno:\n" + e.message;
